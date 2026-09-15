@@ -1,7 +1,7 @@
 ﻿import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Activity, ArrowUpRight, Bell, Boxes, ChevronDown, CircleHelp, ClipboardList, DollarSign, Droplets, LayoutDashboard, LogOut, Menu, Package, PawPrint, Search, Sprout, Syringe, Tractor, UserRound, Users, Wheat, X } from 'lucide-react'
 import { apiDashboard, apiMe, apiSignOut, hasDatabaseConfig } from './lib/api'
-import { fetchDashboard, fetchLivestock, createLivestock, updateLivestock, removeLivestock } from './services/farmService'
+import { fetchDashboard, fetchLivestock, createLivestock, updateLivestock, removeLivestock, fetchRecords, createRecord, updateRecord, removeRecord } from './services/farmService'
 import { getSessionProfile, signIn, signOut } from './services/authService'
 import './App.css'
 
@@ -138,6 +138,286 @@ const Livestock = forwardRef(function Livestock(_props, ref) {
   </section>
 })
 
+const moduleConfigs = {
+  Suppliers: { path: 'suppliers', label: 'supplier', listFields: ['supplierId', 'name', 'contactPerson', 'phone'], fields: [
+    { key: 'supplierId', db: 'supplier_id', label: 'Supplier ID', type: 'text', required: true },
+    { key: 'name', db: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'contactPerson', db: 'contact_person', label: 'Contact person', type: 'text' },
+    { key: 'phone', db: 'phone', label: 'Phone', type: 'text' },
+    { key: 'email', db: 'email', label: 'Email', type: 'text' },
+    { key: 'address', db: 'address', label: 'Address', type: 'text' },
+    { key: 'productsSupplied', db: 'products_supplied', label: 'Products supplied (comma separated)', type: 'array' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  'Animal Health': { path: 'animal-health', label: 'health record', listFields: ['recordId', 'livestockId', 'recordDate', 'condition', 'outcome'], fields: [
+    { key: 'recordId', db: 'record_id', label: 'Record ID', type: 'text', required: true },
+    { key: 'livestockId', db: 'livestock_id', label: 'Animal', type: 'ref', refPath: 'livestock', refLabel: 'animal_id', required: true },
+    { key: 'recordDate', db: 'record_date', label: 'Record date', type: 'date' },
+    { key: 'condition', db: 'condition', label: 'Condition', type: 'text' },
+    { key: 'symptoms', db: 'symptoms', label: 'Symptoms', type: 'text' },
+    { key: 'diagnosis', db: 'diagnosis', label: 'Diagnosis', type: 'text' },
+    { key: 'treatment', db: 'treatment', label: 'Treatment', type: 'text' },
+    { key: 'medication', db: 'medication', label: 'Medication', type: 'text' },
+    { key: 'dosage', db: 'dosage', label: 'Dosage', type: 'text' },
+    { key: 'route', db: 'route', label: 'Route', type: 'text' },
+    { key: 'cost', db: 'cost', label: 'Cost (NGN)', type: 'number' },
+    { key: 'treatmentStartDate', db: 'treatment_start_date', label: 'Treatment start', type: 'date' },
+    { key: 'treatmentEndDate', db: 'treatment_end_date', label: 'Treatment end', type: 'date' },
+    { key: 'nextCheckupDate', db: 'next_checkup_date', label: 'Next checkup', type: 'date' },
+    { key: 'outcome', db: 'outcome', label: 'Outcome', type: 'text' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Vaccinations: { path: 'vaccinations', label: 'vaccination record', listFields: ['vaccinationId', 'livestockId', 'vaccine', 'vaccinationDate', 'nextVaccinationDate'], fields: [
+    { key: 'vaccinationId', db: 'vaccination_id', label: 'Vaccination ID', type: 'text', required: true },
+    { key: 'livestockId', db: 'livestock_id', label: 'Animal', type: 'ref', refPath: 'livestock', refLabel: 'animal_id', required: true },
+    { key: 'vaccine', db: 'vaccine', label: 'Vaccine', type: 'text', required: true },
+    { key: 'vaccinationDate', db: 'vaccination_date', label: 'Vaccination date', type: 'date' },
+    { key: 'birdAge', db: 'bird_age', label: 'Bird age', type: 'text' },
+    { key: 'quantityTreated', db: 'quantity_treated', label: 'Quantity treated', type: 'number', required: true },
+    { key: 'dosage', db: 'dosage', label: 'Dosage', type: 'text' },
+    { key: 'purpose', db: 'purpose', label: 'Purpose', type: 'text' },
+    { key: 'nextVaccinationDate', db: 'next_vaccination_date', label: 'Next vaccination', type: 'date' },
+    { key: 'cost', db: 'cost', label: 'Cost (NGN)', type: 'number' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Feed: { path: 'feeds', label: 'feed record', listFields: ['feedId', 'feedName', 'animalType', 'currentStock', 'minimumStock'], fields: [
+    { key: 'feedId', db: 'feed_id', label: 'Feed ID', type: 'text', required: true },
+    { key: 'feedName', db: 'feed_name', label: 'Feed name', type: 'text', required: true },
+    { key: 'animalType', db: 'animal_type', label: 'Animal type', type: 'text', required: true },
+    { key: 'quantity', db: 'quantity', label: 'Quantity purchased', type: 'number' },
+    { key: 'unit', db: 'unit', label: 'Unit', type: 'text', required: true },
+    { key: 'supplierId', db: 'supplier_id', label: 'Supplier', type: 'ref', refPath: 'suppliers', refLabel: 'name' },
+    { key: 'purchaseDate', db: 'purchase_date', label: 'Purchase date', type: 'date' },
+    { key: 'expiryDate', db: 'expiry_date', label: 'Expiry date', type: 'date' },
+    { key: 'cost', db: 'cost', label: 'Cost (NGN)', type: 'number' },
+    { key: 'currentStock', db: 'current_stock', label: 'Current stock', type: 'number' },
+    { key: 'minimumStock', db: 'minimum_stock', label: 'Minimum stock', type: 'number' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Plots: { path: 'plots', label: 'plot', listFields: ['plotId', 'plotName', 'cropName', 'currentStage', 'status'], fields: [
+    { key: 'plotId', db: 'plot_id', label: 'Plot ID', type: 'text', required: true },
+    { key: 'plotName', db: 'plot_name', label: 'Plot name', type: 'text', required: true },
+    { key: 'cropName', db: 'crop_name', label: 'Crop', type: 'text', required: true },
+    { key: 'variety', db: 'variety', label: 'Variety', type: 'text' },
+    { key: 'area', db: 'area', label: 'Area', type: 'number' },
+    { key: 'areaUnit', db: 'area_unit', label: 'Area unit', type: 'text', default: 'ha' },
+    { key: 'plantingDate', db: 'planting_date', label: 'Planting date', type: 'date' },
+    { key: 'numberOfPlants', db: 'number_of_plants', label: 'Number of plants', type: 'number' },
+    { key: 'currentStage', db: 'current_stage', label: 'Current stage', type: 'text' },
+    { key: 'expectedHarvestDate', db: 'expected_harvest_date', label: 'Expected harvest', type: 'date' },
+    { key: 'status', db: 'status', label: 'Status', type: 'select', options: ['active', 'completed', 'fallow', 'archived'], default: 'active' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  'Spray Records': { path: 'spray-records', label: 'spray record', listFields: ['applicationId', 'plotId', 'productName', 'productType', 'applicationDate'], fields: [
+    { key: 'applicationId', db: 'application_id', label: 'Application ID', type: 'text', required: true },
+    { key: 'plotId', db: 'plot_id', label: 'Plot', type: 'ref', refPath: 'plots', refLabel: 'plot_name', required: true },
+    { key: 'applicationDate', db: 'application_date', label: 'Application date', type: 'date' },
+    { key: 'growthStage', db: 'growth_stage', label: 'Growth stage', type: 'text' },
+    { key: 'productName', db: 'product_name', label: 'Product name', type: 'text', required: true },
+    { key: 'productType', db: 'product_type', label: 'Product type', type: 'select', options: ['Pesticide', 'Fungicide', 'Herbicide', 'Fertilizer', 'Other'], required: true },
+    { key: 'activeIngredient', db: 'active_ingredient', label: 'Active ingredient', type: 'text' },
+    { key: 'dosage', db: 'dosage', label: 'Dosage', type: 'text' },
+    { key: 'waterVolume', db: 'water_volume', label: 'Water volume', type: 'text' },
+    { key: 'areaTreated', db: 'area_treated', label: 'Area treated', type: 'number' },
+    { key: 'purpose', db: 'purpose', label: 'Purpose', type: 'text' },
+    { key: 'cost', db: 'cost', label: 'Cost (NGN)', type: 'number' },
+    { key: 'nextApplicationDate', db: 'next_application_date', label: 'Next application', type: 'date' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Harvest: { path: 'harvests', label: 'harvest record', listFields: ['harvestId', 'plotId', 'crop', 'quantity', 'harvestDate'], fields: [
+    { key: 'harvestId', db: 'harvest_id', label: 'Harvest ID', type: 'text', required: true },
+    { key: 'plotId', db: 'plot_id', label: 'Plot', type: 'ref', refPath: 'plots', refLabel: 'plot_name', required: true },
+    { key: 'crop', db: 'crop', label: 'Crop', type: 'text', required: true },
+    { key: 'harvestDate', db: 'harvest_date', label: 'Harvest date', type: 'date' },
+    { key: 'quantity', db: 'quantity', label: 'Quantity', type: 'number', required: true },
+    { key: 'unit', db: 'unit', label: 'Unit', type: 'text', required: true },
+    { key: 'grade', db: 'grade', label: 'Grade', type: 'text' },
+    { key: 'quality', db: 'quality', label: 'Quality', type: 'text' },
+    { key: 'storageLocation', db: 'storage_location', label: 'Storage location', type: 'text' },
+    { key: 'sellingPrice', db: 'selling_price', label: 'Selling price (NGN)', type: 'number' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Sales: { path: 'sales', label: 'sale', listFields: ['saleId', 'product', 'quantity', 'unitPrice', 'paymentStatus'], fields: [
+    { key: 'saleId', db: 'sale_id', label: 'Sale ID', type: 'text', required: true },
+    { key: 'saleDate', db: 'sale_date', label: 'Sale date', type: 'date' },
+    { key: 'product', db: 'product', label: 'Product', type: 'text', required: true },
+    { key: 'cropLivestock', db: 'crop_livestock', label: 'Crop / livestock', type: 'text' },
+    { key: 'quantity', db: 'quantity', label: 'Quantity', type: 'number', required: true },
+    { key: 'unit', db: 'unit', label: 'Unit', type: 'text', required: true },
+    { key: 'unitPrice', db: 'unit_price', label: 'Unit price (NGN)', type: 'number', required: true },
+    { key: 'customer', db: 'customer', label: 'Customer', type: 'text' },
+    { key: 'paymentStatus', db: 'payment_status', label: 'Payment status', type: 'select', options: ['Paid', 'Pending', 'Partially Paid'], default: 'Pending' },
+    { key: 'paymentMethod', db: 'payment_method', label: 'Payment method', type: 'text' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Expenses: { path: 'expenses', label: 'expense', listFields: ['expenseId', 'category', 'description', 'unitCost', 'paymentStatus'], fields: [
+    { key: 'expenseId', db: 'expense_id', label: 'Expense ID', type: 'text', required: true },
+    { key: 'expenseDate', db: 'expense_date', label: 'Expense date', type: 'date' },
+    { key: 'category', db: 'category', label: 'Category', type: 'text', required: true },
+    { key: 'description', db: 'description', label: 'Description', type: 'text', required: true },
+    { key: 'department', db: 'department', label: 'Department', type: 'text' },
+    { key: 'quantity', db: 'quantity', label: 'Quantity', type: 'number', default: 1 },
+    { key: 'unitCost', db: 'unit_cost', label: 'Unit cost (NGN)', type: 'number', required: true },
+    { key: 'supplierId', db: 'supplier_id', label: 'Supplier', type: 'ref', refPath: 'suppliers', refLabel: 'name' },
+    { key: 'paymentStatus', db: 'payment_status', label: 'Payment status', type: 'select', options: ['Paid', 'Pending', 'Partially Paid'], default: 'Paid' },
+    { key: 'paymentMethod', db: 'payment_method', label: 'Payment method', type: 'text' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Inventory: { path: 'inventory', label: 'inventory item', listFields: ['itemId', 'itemName', 'category', 'quantity', 'minimumStock'], fields: [
+    { key: 'itemId', db: 'item_id', label: 'Item ID', type: 'text', required: true },
+    { key: 'itemName', db: 'item_name', label: 'Item name', type: 'text', required: true },
+    { key: 'category', db: 'category', label: 'Category', type: 'select', options: ['Feed', 'Medication', 'Vaccine', 'Pesticide', 'Fungicide', 'Fertilizer', 'Seeds', 'Equipment', 'Other'], required: true },
+    { key: 'quantity', db: 'quantity', label: 'Quantity', type: 'number' },
+    { key: 'unit', db: 'unit', label: 'Unit', type: 'text', required: true },
+    { key: 'minimumStock', db: 'minimum_stock', label: 'Minimum stock', type: 'number' },
+    { key: 'purchaseDate', db: 'purchase_date', label: 'Purchase date', type: 'date' },
+    { key: 'expiryDate', db: 'expiry_date', label: 'Expiry date', type: 'date' },
+    { key: 'supplierId', db: 'supplier_id', label: 'Supplier', type: 'ref', refPath: 'suppliers', refLabel: 'name' },
+    { key: 'cost', db: 'cost', label: 'Cost (NGN)', type: 'number' },
+    { key: 'storageLocation', db: 'storage_location', label: 'Storage location', type: 'text' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+  Staff: { path: 'staff', label: 'staff member', listFields: ['staffId', 'name', 'role', 'department', 'status'], fields: [
+    { key: 'staffId', db: 'staff_id', label: 'Staff ID', type: 'text', required: true },
+    { key: 'name', db: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'phone', db: 'phone', label: 'Phone', type: 'text' },
+    { key: 'email', db: 'email', label: 'Email', type: 'text' },
+    { key: 'role', db: 'role', label: 'Role', type: 'select', options: ['admin', 'farm_manager', 'staff', 'veterinarian'], default: 'staff', required: true },
+    { key: 'department', db: 'department', label: 'Department', type: 'text' },
+    { key: 'dateJoined', db: 'date_joined', label: 'Date joined', type: 'date' },
+    { key: 'status', db: 'status', label: 'Status', type: 'select', options: ['active', 'inactive'], default: 'active' },
+    { key: 'notes', db: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ] },
+}
+moduleConfigs.Crops = moduleConfigs.Plots
+
+function emptyRecordForm(config) {
+  const form = {}
+  config.fields.forEach((field) => { form[field.key] = field.default ?? '' })
+  return form
+}
+
+function toRecordForm(config, row) {
+  const form = { id: row.id }
+  config.fields.forEach((field) => {
+    let value = row[field.db]
+    if (field.type === 'date' && value) value = value.slice(0, 10)
+    else if (field.type === 'array' && Array.isArray(value)) value = value.join(', ')
+    form[field.key] = value ?? ''
+  })
+  return form
+}
+
+function RecordForm({ config, initial, onCancel, onSave }) {
+  const [form, setForm] = useState(initial)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [refOptions, setRefOptions] = useState({})
+  useEffect(() => {
+    config.fields.filter((field) => field.type === 'ref').forEach((field) => {
+      fetchRecords(field.refPath).then((result) => setRefOptions((prev) => ({ ...prev, [field.key]: result.records || result.livestock || [] })))
+    })
+  }, [config])
+  const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }))
+  const submit = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try { await onSave(form) }
+    catch (saveError) { setError(saveError.message) }
+    finally { setBusy(false) }
+  }
+  return <div className="modal-overlay"><div className="modal-card">
+    <h2>{initial.id ? `Edit ${config.label}` : `Add ${config.label}`}<span>.</span></h2>
+    <p className="subheading">Saved directly to the {config.path.replaceAll('-', '_')} table in Neon.</p>
+    <form className="modal-form" onSubmit={submit}>
+      {config.fields.map((field) => <label key={field.key} className={field.full ? 'full' : undefined}>
+        {field.label}
+        {field.type === 'select' ? <select value={form[field.key] ?? ''} onChange={set(field.key)} required={field.required}><option value="">Select...</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+          : field.type === 'ref' ? <select value={form[field.key] ?? ''} onChange={set(field.key)} required={field.required}><option value="">Select...</option>{(refOptions[field.key] || []).map((option) => <option key={option.id} value={option.id}>{option[field.refLabel]}</option>)}</select>
+          : field.type === 'textarea' ? <textarea value={form[field.key] ?? ''} onChange={set(field.key)} rows={3} />
+          : field.type === 'number' ? <input type="number" step="0.01" value={form[field.key] ?? ''} onChange={set(field.key)} required={field.required} />
+          : field.type === 'date' ? <input type="date" value={form[field.key] ?? ''} onChange={set(field.key)} required={field.required} />
+          : <input value={form[field.key] ?? ''} onChange={set(field.key)} required={field.required} />}
+      </label>)}
+      {error && <div className="form-message full">{error}</div>}
+      <div className="modal-actions">
+        <button type="button" className="ghost-button" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Saving...' : 'Save record'}</button>
+      </div>
+    </form>
+  </div></div>
+}
+
+const RecordModule = forwardRef(function RecordModule({ config }, ref) {
+  const [records, setRecords] = useState(null)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [editing, setEditing] = useState(null)
+  const [refLabels, setRefLabels] = useState({})
+  useEffect(() => {
+    fetchRecords(config.path).then((result) => setRecords(result.records)).catch((loadError) => setError(loadError.message))
+    config.fields.filter((field) => field.type === 'ref').forEach((field) => {
+      fetchRecords(field.refPath).then((result) => {
+        const list = result.records || result.livestock || []
+        const map = Object.fromEntries(list.map((item) => [item.id, item[field.refLabel]]))
+        setRefLabels((prev) => ({ ...prev, [field.key]: map }))
+      })
+    })
+  }, [config])
+  useImperativeHandle(ref, () => ({ openAdd: () => setEditing(emptyRecordForm(config)) }))
+  const filtered = useMemo(() => {
+    if (!records) return []
+    const term = search.trim().toLowerCase()
+    if (!term) return records
+    return records.filter((row) => config.listFields.some((key) => {
+      const field = config.fields.find((f) => f.key === key)
+      const raw = row[field.db]
+      const display = field.type === 'ref' ? (refLabels[field.key]?.[raw] || '') : raw
+      return String(display ?? '').toLowerCase().includes(term)
+    }))
+  }, [records, search, config, refLabels])
+  const save = async (form) => {
+    const result = form.id ? await updateRecord(config.path, form.id, form) : await createRecord(config.path, form)
+    setRecords((prev) => form.id ? prev.map((row) => row.id === form.id ? result.record : row) : [result.record, ...prev])
+    setEditing(null)
+  }
+  const remove = async (row) => {
+    if (!window.confirm(`Remove this ${config.label}? This cannot be undone.`)) return
+    try { await removeRecord(config.path, row.id); setRecords((prev) => prev.filter((record) => record.id !== row.id)) }
+    catch (removeError) { setError(removeError.message) }
+  }
+  return <section className="table-view">
+    <div className="table-header">
+      <div><p className="eyebrow">Kaasfield Farms database</p><h1>{config.label[0].toUpperCase() + config.label.slice(1)} records<span>.</span></h1><p className="subheading">Backed directly by the {config.path.replaceAll('-', '_')} table in Neon.</p></div>
+      <button className="add-button" type="button" onClick={() => setEditing(emptyRecordForm(config))}><span>+</span> Add {config.label}</button>
+    </div>
+    {error && <div className="form-message" style={{ margin: '0 0 18px' }}>{error}</div>}
+    <div className="table-toolbar">
+      <span>{filtered.length} of {records?.length || 0} records</span>
+      <input className="filter-button" placeholder="Filter records" value={search} onChange={(event) => setSearch(event.target.value)} style={{ width: 220 }} />
+    </div>
+    <div className="data-table-wrap">
+      {!records ? <div className="empty-state">Loading records...</div> : !filtered.length ? <div className="empty-state">No records match.</div> :
+        <table>
+          <thead><tr>{config.listFields.map((key) => <th key={key}>{config.fields.find((f) => f.key === key)?.label}</th>)}<th></th></tr></thead>
+          <tbody>{filtered.map((row) => <tr key={row.id}>
+            {config.listFields.map((key) => {
+              const field = config.fields.find((f) => f.key === key)
+              let display = row[field.db]
+              if (field.type === 'ref') display = refLabels[field.key]?.[display] || '-'
+              else if (field.type === 'date' && display) display = new Date(display).toLocaleDateString('en-GB')
+              else if (Array.isArray(display)) display = display.join(', ')
+              return <td key={key}>{display === null || display === undefined || display === '' ? '-' : String(display)}</td>
+            })}
+            <td><div className="row-actions"><button type="button" className="edit" onClick={() => setEditing(toRecordForm(config, row))}>Edit</button><button type="button" className="delete" onClick={() => remove(row)}>Delete</button></div></td>
+          </tr>)}</tbody>
+        </table>}
+    </div>
+    {editing && <RecordForm config={config} initial={editing} onCancel={() => setEditing(null)} onSave={save} />}
+  </section>
+})
+
 function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -147,6 +427,7 @@ function App() {
   const [notice, setNotice] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
   const livestockRef = useRef(null)
+  const moduleRef = useRef(null)
   useEffect(() => { if (!hasDatabaseConfig) return; const token = localStorage.getItem('kaasfield_session'); if (!token) return; Promise.all([getSessionProfile(), fetchDashboard()]).then(([profileResult, dashboard]) => { setSession({ user: profileResult.profile }); setProfile(profileResult.profile); setData(dashboard) }).catch(() => apiSignOut()) }, [])
   useEffect(() => { if (!session?.user || data) return; Promise.all([apiMe(), apiDashboard()]).then(([profileResult, dashboard]) => { setProfile(profileResult.profile); setData(dashboard) }).catch((loadError) => setError(loadError.message)) }, [session, data])
   if (!hasDatabaseConfig) return <ConfigScreen />
@@ -155,9 +436,10 @@ function App() {
   const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.label === activeView)
   const addRecord = () => {
     if (activeView === 'Livestock') return livestockRef.current?.openAdd()
-    setNotice(`${activeView} doesn't have an add form yet - Livestock is the only module built out so far.`)
+    if (moduleConfigs[activeView]) return moduleRef.current?.openAdd()
+    setNotice(`${activeView} doesn't have an add form yet.`)
   }
-  return <div className="app-shell"><aside className={mobileOpen ? 'sidebar mobile-open' : 'sidebar'}><div className="brand"><div className="brand-mark">K</div><div><strong>Kaasfield</strong><span>Farms - DBMS</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} type="button"><X size={17} /></button></div><div className="farm-switcher"><span className="status-dot" /> Main farm <ChevronDown size={14} /></div><nav className="nav-list" aria-label="Main navigation">{navGroups.map((group) => <div key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(({ label, icon: Icon }) => <button key={label} className={activeView === label ? 'nav-item active' : 'nav-item'} onClick={() => navigate(label)} type="button"><Icon size={16} />{label}</button>)}</div>)}</nav><div className="sidebar-footer"><button className="nav-item" type="button"><CircleHelp size={16} /> Help center</button><button className="user-card" onClick={signOut} type="button"><span className="avatar">{(profile?.full_name || 'A').slice(0, 2).toUpperCase()}</span><span><strong>{profile?.full_name || session.user.email}</strong><small>{profile?.role || 'staff'}</small></span><LogOut size={14} /></button></div></aside><main className="main-content"><header className="topbar"><button className="mobile-menu" onClick={() => setMobileOpen(true)} type="button"><Menu size={19} /></button><div className="breadcrumb"><span>Workspace</span><b>/</b><strong>{activeView}</strong></div><div className="top-actions"><label className="search"><Search size={15} /><input placeholder="Search records..." /></label><button className="icon-button" title="Notifications" type="button"><Bell size={18} /><i /></button><button className="add-button" type="button" onClick={addRecord}><span>+</span> Add record</button></div></header>{error && <div className="error-banner">{error}</div>}{notice && <div className="error-banner">{notice}</div>}{data && activeView === 'Dashboard' && <Dashboard data={data} onNavigate={navigate} />}{data && activeView === 'Livestock' && <Livestock ref={livestockRef} />}{data && activeView !== 'Dashboard' && activeView !== 'Livestock' && <section className="module-placeholder"><p className="eyebrow">Kaasfield Farms database</p><h1>{activeItem?.label}<span>.</span></h1><p className="subheading">This module is connected to Neon. Use the schema and service layer as the source of truth for records, role permissions, and audit history.</p><div className="panel empty-state"><Package size={24} /><strong>{activeItem?.label} workspace ready</strong><span>Add the module form and table here without changing the database contract.</span></div></section>}</main></div>
+  return <div className="app-shell"><aside className={mobileOpen ? 'sidebar mobile-open' : 'sidebar'}><div className="brand"><div className="brand-mark">K</div><div><strong>Kaasfield</strong><span>Farms - DBMS</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} type="button"><X size={17} /></button></div><div className="farm-switcher"><span className="status-dot" /> Main farm <ChevronDown size={14} /></div><nav className="nav-list" aria-label="Main navigation">{navGroups.map((group) => <div key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(({ label, icon: Icon }) => <button key={label} className={activeView === label ? 'nav-item active' : 'nav-item'} onClick={() => navigate(label)} type="button"><Icon size={16} />{label}</button>)}</div>)}</nav><div className="sidebar-footer"><button className="nav-item" type="button"><CircleHelp size={16} /> Help center</button><button className="user-card" onClick={signOut} type="button"><span className="avatar">{(profile?.full_name || 'A').slice(0, 2).toUpperCase()}</span><span><strong>{profile?.full_name || session.user.email}</strong><small>{profile?.role || 'staff'}</small></span><LogOut size={14} /></button></div></aside><main className="main-content"><header className="topbar"><button className="mobile-menu" onClick={() => setMobileOpen(true)} type="button"><Menu size={19} /></button><div className="breadcrumb"><span>Workspace</span><b>/</b><strong>{activeView}</strong></div><div className="top-actions"><label className="search"><Search size={15} /><input placeholder="Search records..." /></label><button className="icon-button" title="Notifications" type="button"><Bell size={18} /><i /></button><button className="add-button" type="button" onClick={addRecord}><span>+</span> Add record</button></div></header>{error && <div className="error-banner">{error}</div>}{notice && <div className="error-banner">{notice}</div>}{data && activeView === 'Dashboard' && <Dashboard data={data} onNavigate={navigate} />}{data && activeView === 'Livestock' && <Livestock ref={livestockRef} />}{data && moduleConfigs[activeView] && <RecordModule key={activeView} ref={moduleRef} config={moduleConfigs[activeView]} />}{data && activeView !== 'Dashboard' && activeView !== 'Livestock' && !moduleConfigs[activeView] && <section className="module-placeholder"><p className="eyebrow">Kaasfield Farms database</p><h1>{activeItem?.label}<span>.</span></h1><p className="subheading">This module is connected to Neon. Use the schema and service layer as the source of truth for records, role permissions, and audit history.</p><div className="panel empty-state"><Package size={24} /><strong>{activeItem?.label} workspace ready</strong><span>Add the module form and table here without changing the database contract.</span></div></section>}</main></div>
 }
 
 export default App

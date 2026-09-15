@@ -21,3 +21,8 @@ export async function apiListLivestock() { return request('/api/livestock') }
 export async function apiCreateLivestock(payload) { return request('/api/livestock', { method: 'POST', body: JSON.stringify(payload) }) }
 export async function apiUpdateLivestock(id, payload) { return request(`/api/livestock/${id}`, { method: 'PUT', body: JSON.stringify(payload) }) }
 export async function apiDeleteLivestock(id) { return request(`/api/livestock/${id}`, { method: 'DELETE' }) }
+
+export async function apiListRecords(path) { return request(`/api/${path}`) }
+export async function apiCreateRecord(path, payload) { return request(`/api/${path}`, { method: 'POST', body: JSON.stringify(payload) }) }
+export async function apiUpdateRecord(path, id, payload) { return request(`/api/${path}/${id}`, { method: 'PUT', body: JSON.stringify(payload) }) }
+export async function apiDeleteRecord(path, id) { return request(`/api/${path}/${id}`, { method: 'DELETE' }) }
