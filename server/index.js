@@ -53,6 +53,47 @@ app.post('/api/auth/login', requireDatabase, async (request, response) => {
 
 app.get('/api/auth/me', requireDatabase, requireAuth, async (request, response) => { const [profile] = await sql`select id, full_name, email, role, department, phone from profiles where id = ${request.user.sub}`; if (!profile) return response.status(404).json({ error: 'Profile not found.' }); return response.json({ profile }) })
 
+function logActivity(actorId, action, entityType, entityId, description) {
+  return sql`insert into activity_logs (actor_id, action, entity_type, entity_id, description) values (${actorId}, ${action}, ${entityType}, ${entityId}, ${description})`
+}
+
+app.get('/api/livestock', requireDatabase, requireAuth, async (_request, response) => {
+  try {
+    const rows = await sql`select * from livestock order by created_at desc`
+    return response.json({ livestock: rows })
+  } catch (error) { return response.status(500).json({ error: error.message }) }
+})
+
+app.post('/api/livestock', requireDatabase, requireAuth, async (request, response) => {
+  const { animalId, animalType, breed, sex, quantity, dateAcquired, source, purchaseCost, currentStatus, location, weight, dateOfBirth, notes } = request.body
+  if (!animalId || !animalType || !quantity) return response.status(400).json({ error: 'Animal ID, type, and quantity are required.' })
+  try {
+    const [row] = await sql`insert into livestock (animal_id, animal_type, breed, sex, quantity, date_acquired, source, purchase_cost, current_status, location, weight, date_of_birth, notes, created_by) values (${animalId}, ${animalType}, ${breed || null}, ${sex || null}, ${quantity}, ${dateAcquired || null}, ${source || null}, ${purchaseCost || 0}, ${currentStatus || 'active'}, ${location || null}, ${weight || null}, ${dateOfBirth || null}, ${notes || null}, ${request.user.sub}) returning *`
+    await logActivity(request.user.sub, 'create', 'livestock', row.id, `Added ${row.quantity} ${row.animal_type.toLowerCase()}(s) - ${row.animal_id}`)
+    return response.status(201).json({ livestock: row })
+  } catch (error) { return response.status(error.code === '23505' ? 409 : 400).json({ error: error.code === '23505' ? 'An animal record with that ID already exists.' : error.message }) }
+})
+
+app.put('/api/livestock/:id', requireDatabase, requireAuth, async (request, response) => {
+  const { animalId, animalType, breed, sex, quantity, dateAcquired, source, purchaseCost, currentStatus, location, weight, dateOfBirth, notes } = request.body
+  if (!animalId || !animalType || !quantity) return response.status(400).json({ error: 'Animal ID, type, and quantity are required.' })
+  try {
+    const [row] = await sql`update livestock set animal_id = ${animalId}, animal_type = ${animalType}, breed = ${breed || null}, sex = ${sex || null}, quantity = ${quantity}, date_acquired = ${dateAcquired || null}, source = ${source || null}, purchase_cost = ${purchaseCost || 0}, current_status = ${currentStatus || 'active'}, location = ${location || null}, weight = ${weight || null}, date_of_birth = ${dateOfBirth || null}, notes = ${notes || null} where id = ${request.params.id} returning *`
+    if (!row) return response.status(404).json({ error: 'Record not found.' })
+    await logActivity(request.user.sub, 'update', 'livestock', row.id, `Updated livestock record ${row.animal_id}`)
+    return response.json({ livestock: row })
+  } catch (error) { return response.status(error.code === '23505' ? 409 : 400).json({ error: error.code === '23505' ? 'An animal record with that ID already exists.' : error.message }) }
+})
+
+app.delete('/api/livestock/:id', requireDatabase, requireAuth, async (request, response) => {
+  try {
+    const [row] = await sql`delete from livestock where id = ${request.params.id} returning id, animal_id`
+    if (!row) return response.status(404).json({ error: 'Record not found.' })
+    await logActivity(request.user.sub, 'delete', 'livestock', row.id, `Removed livestock record ${row.animal_id}`)
+    return response.status(204).end()
+  } catch (error) { return response.status(500).json({ error: error.message }) }
+})
+
 app.get('/api/dashboard', requireDatabase, requireAuth, async (_request, response) => {
   try {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)

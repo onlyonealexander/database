@@ -16,3 +16,8 @@ export async function apiSignup(payload) { const result = await request('/api/au
 export async function apiMe() { return request('/api/auth/me') }
 export async function apiDashboard() { return request('/api/dashboard') }
 export function apiSignOut() { localStorage.removeItem(tokenKey) }
+
+export async function apiListLivestock() { return request('/api/livestock') }
+export async function apiCreateLivestock(payload) { return request('/api/livestock', { method: 'POST', body: JSON.stringify(payload) }) }
+export async function apiUpdateLivestock(id, payload) { return request(`/api/livestock/${id}`, { method: 'PUT', body: JSON.stringify(payload) }) }
+export async function apiDeleteLivestock(id) { return request(`/api/livestock/${id}`, { method: 'DELETE' }) }
