@@ -70,4 +70,8 @@ app.get('/api/dashboard', requireDatabase, requireAuth, async (_request, respons
   } catch (error) { return response.status(500).json({ error: error.message }) }
 })
 
-app.listen(port, () => console.log(`Kaasfield API listening on http://localhost:${port}`))
+export default app
+
+if (!process.env.VERCEL) {
+  app.listen(port, () => console.log(`Kaasfield API listening on http://localhost:${port}`))
+}

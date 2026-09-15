@@ -1,7 +1,7 @@
 const tokenKey = 'kaasfield_session'
 
 export const apiBase = import.meta.env.VITE_API_URL || ''
-export const hasDatabaseConfig = Boolean(import.meta.env.VITE_API_URL || import.meta.env.DEV)
+export const hasDatabaseConfig = true
 
 async function request(path, options = {}) {
   const token = localStorage.getItem(tokenKey)
