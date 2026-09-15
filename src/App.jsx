@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Activity, ArrowUpRight, Bell, Boxes, ChevronDown, CircleHelp, ClipboardList, DollarSign, Droplets, LayoutDashboard, LogOut, Menu, Package, PawPrint, Search, Sprout, Syringe, Tractor, UserRound, Users, Wheat, X } from 'lucide-react'
 import { apiDashboard, apiMe, apiSignOut, hasDatabaseConfig } from './lib/api'
 import { fetchDashboard, fetchLivestock, createLivestock, updateLivestock, removeLivestock } from './services/farmService'
@@ -89,12 +89,13 @@ function LivestockForm({ initial, onCancel, onSave }) {
   </div></div>
 }
 
-function Livestock() {
+const Livestock = forwardRef(function Livestock(_props, ref) {
   const [records, setRecords] = useState(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
   useEffect(() => { fetchLivestock().then((result) => setRecords(result.livestock)).catch((loadError) => setError(loadError.message)) }, [])
+  useImperativeHandle(ref, () => ({ openAdd: () => setEditing({ ...emptyLivestockForm }) }))
   const filtered = useMemo(() => {
     if (!records) return []
     const term = search.trim().toLowerCase()
@@ -135,7 +136,7 @@ function Livestock() {
     </div>
     {editing && <LivestockForm initial={editing} onCancel={() => setEditing(null)} onSave={save} />}
   </section>
-}
+})
 
 function App() {
   const [session, setSession] = useState(null)
@@ -143,14 +144,20 @@ function App() {
   const [data, setData] = useState(null)
   const [activeView, setActiveView] = useState('Dashboard')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const livestockRef = useRef(null)
   useEffect(() => { if (!hasDatabaseConfig) return; const token = localStorage.getItem('kaasfield_session'); if (!token) return; Promise.all([getSessionProfile(), fetchDashboard()]).then(([profileResult, dashboard]) => { setSession({ user: profileResult.profile }); setProfile(profileResult.profile); setData(dashboard) }).catch(() => apiSignOut()) }, [])
   useEffect(() => { if (!session?.user || data) return; Promise.all([apiMe(), apiDashboard()]).then(([profileResult, dashboard]) => { setProfile(profileResult.profile); setData(dashboard) }).catch((loadError) => setError(loadError.message)) }, [session, data])
   if (!hasDatabaseConfig) return <ConfigScreen />
   if (!session) return <LoginScreen onLogin={async (email, password) => { const result = await signIn(email, password); setSession({ user: result.profile }); setProfile(result.profile); setData(await fetchDashboard()) }} />
-  const navigate = (view) => { setActiveView(view); setMobileOpen(false) }
+  const navigate = (view) => { setActiveView(view); setMobileOpen(false); setNotice('') }
   const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.label === activeView)
-  return <div className="app-shell"><aside className={mobileOpen ? 'sidebar mobile-open' : 'sidebar'}><div className="brand"><div className="brand-mark">K</div><div><strong>Kaasfield</strong><span>Farms - DBMS</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} type="button"><X size={17} /></button></div><div className="farm-switcher"><span className="status-dot" /> Main farm <ChevronDown size={14} /></div><nav className="nav-list" aria-label="Main navigation">{navGroups.map((group) => <div key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(({ label, icon: Icon }) => <button key={label} className={activeView === label ? 'nav-item active' : 'nav-item'} onClick={() => navigate(label)} type="button"><Icon size={16} />{label}</button>)}</div>)}</nav><div className="sidebar-footer"><button className="nav-item" type="button"><CircleHelp size={16} /> Help center</button><button className="user-card" onClick={signOut} type="button"><span className="avatar">{(profile?.full_name || 'A').slice(0, 2).toUpperCase()}</span><span><strong>{profile?.full_name || session.user.email}</strong><small>{profile?.role || 'staff'}</small></span><LogOut size={14} /></button></div></aside><main className="main-content"><header className="topbar"><button className="mobile-menu" onClick={() => setMobileOpen(true)} type="button"><Menu size={19} /></button><div className="breadcrumb"><span>Workspace</span><b>/</b><strong>{activeView}</strong></div><div className="top-actions"><label className="search"><Search size={15} /><input placeholder="Search records..." /></label><button className="icon-button" title="Notifications" type="button"><Bell size={18} /><i /></button><button className="add-button" type="button"><span>+</span> Add record</button></div></header>{error && <div className="error-banner">{error}</div>}{data && activeView === 'Dashboard' && <Dashboard data={data} onNavigate={navigate} />}{data && activeView === 'Livestock' && <Livestock />}{data && activeView !== 'Dashboard' && activeView !== 'Livestock' && <section className="module-placeholder"><p className="eyebrow">Kaasfield Farms database</p><h1>{activeItem?.label}<span>.</span></h1><p className="subheading">This module is connected to Neon. Use the schema and service layer as the source of truth for records, role permissions, and audit history.</p><div className="panel empty-state"><Package size={24} /><strong>{activeItem?.label} workspace ready</strong><span>Add the module form and table here without changing the database contract.</span></div></section>}</main></div>
+  const addRecord = () => {
+    if (activeView === 'Livestock') return livestockRef.current?.openAdd()
+    setNotice(`${activeView} doesn't have an add form yet - Livestock is the only module built out so far.`)
+  }
+  return <div className="app-shell"><aside className={mobileOpen ? 'sidebar mobile-open' : 'sidebar'}><div className="brand"><div className="brand-mark">K</div><div><strong>Kaasfield</strong><span>Farms - DBMS</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} type="button"><X size={17} /></button></div><div className="farm-switcher"><span className="status-dot" /> Main farm <ChevronDown size={14} /></div><nav className="nav-list" aria-label="Main navigation">{navGroups.map((group) => <div key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(({ label, icon: Icon }) => <button key={label} className={activeView === label ? 'nav-item active' : 'nav-item'} onClick={() => navigate(label)} type="button"><Icon size={16} />{label}</button>)}</div>)}</nav><div className="sidebar-footer"><button className="nav-item" type="button"><CircleHelp size={16} /> Help center</button><button className="user-card" onClick={signOut} type="button"><span className="avatar">{(profile?.full_name || 'A').slice(0, 2).toUpperCase()}</span><span><strong>{profile?.full_name || session.user.email}</strong><small>{profile?.role || 'staff'}</small></span><LogOut size={14} /></button></div></aside><main className="main-content"><header className="topbar"><button className="mobile-menu" onClick={() => setMobileOpen(true)} type="button"><Menu size={19} /></button><div className="breadcrumb"><span>Workspace</span><b>/</b><strong>{activeView}</strong></div><div className="top-actions"><label className="search"><Search size={15} /><input placeholder="Search records..." /></label><button className="icon-button" title="Notifications" type="button"><Bell size={18} /><i /></button><button className="add-button" type="button" onClick={addRecord}><span>+</span> Add record</button></div></header>{error && <div className="error-banner">{error}</div>}{notice && <div className="error-banner">{notice}</div>}{data && activeView === 'Dashboard' && <Dashboard data={data} onNavigate={navigate} />}{data && activeView === 'Livestock' && <Livestock ref={livestockRef} />}{data && activeView !== 'Dashboard' && activeView !== 'Livestock' && <section className="module-placeholder"><p className="eyebrow">Kaasfield Farms database</p><h1>{activeItem?.label}<span>.</span></h1><p className="subheading">This module is connected to Neon. Use the schema and service layer as the source of truth for records, role permissions, and audit history.</p><div className="panel empty-state"><Package size={24} /><strong>{activeItem?.label} workspace ready</strong><span>Add the module form and table here without changing the database contract.</span></div></section>}</main></div>
 }
 
 export default App
