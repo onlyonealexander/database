@@ -120,7 +120,7 @@ const Livestock = forwardRef(function Livestock(_props, ref) {
     {error && <div className="form-message" style={{ margin: '0 0 18px' }}>{error}</div>}
     <div className="table-toolbar">
       <span>{filtered.length} of {records?.length || 0} records</span>
-      <input className="filter-button" placeholder="Filter by ID, type, breed, location" value={search} onChange={(event) => setSearch(event.target.value)} style={{ width: 240 }} />
+      <input className="filter-button toolbar-search" placeholder="Filter by ID, type, breed, location" value={search} onChange={(event) => setSearch(event.target.value)} />
     </div>
     <div className="data-table-wrap">
       {!records ? <div className="empty-state">Loading livestock records...</div> : !filtered.length ? <div className="empty-state">No livestock records match.</div> :
@@ -395,7 +395,7 @@ const RecordModule = forwardRef(function RecordModule({ config }, ref) {
     {error && <div className="form-message" style={{ margin: '0 0 18px' }}>{error}</div>}
     <div className="table-toolbar">
       <span>{filtered.length} of {records?.length || 0} records</span>
-      <input className="filter-button" placeholder="Filter records" value={search} onChange={(event) => setSearch(event.target.value)} style={{ width: 220 }} />
+      <input className="filter-button toolbar-search" placeholder="Filter records" value={search} onChange={(event) => setSearch(event.target.value)} />
     </div>
     <div className="data-table-wrap">
       {!records ? <div className="empty-state">Loading records...</div> : !filtered.length ? <div className="empty-state">No records match.</div> :
